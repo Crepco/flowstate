@@ -48,5 +48,4 @@ On Windows you can just double-click [run_dashboard.bat](run_dashboard.bat).
 - [analyze_csv.py](analyze_csv.py) — offline before/after filtering report
 - [docs/](docs/) — hardware setup, signal pipeline notes, problem statement
 
-## Note
-Focus scores are relative, calibrated per-user — EEG-based attention detection is a proxy signal, not a diagnostic tool.
+
