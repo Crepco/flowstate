@@ -8,6 +8,9 @@ venv/
 calibration/data/*
 !calibration/data/.gitkeep
 
+# Logs
+*.log
+
 # OS
 .DS_Store
 Thumbs.db

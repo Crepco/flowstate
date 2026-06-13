@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowState — focus monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="alert-banner" class="alert-banner hidden">
+    <span class="alert-dot"></span>
+    <span>You're zoning out — refocus.</span>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">🧠</div>
+      <div>
+        <h1>FlowState</h1>
+        <p class="tag">real-time focus from forehead EEG</p>
+      </div>
+    </div>
+    <div class="status-chips">
+      <span id="chip-conn" class="chip chip-muted"><span class="led"></span>connecting…</span>
+      <span id="chip-source" class="chip chip-muted">source: —</span>
+      <span id="chip-quality" class="chip chip-muted">signal: —</span>
+      <span id="chip-calib" class="chip chip-muted">uncalibrated</span>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- Focus score -->
+    <section class="card focus-card">
+      <div class="card-head"><h2>Focus score</h2><span class="hint">relative to your baseline</span></div>
+      <div class="gauge-wrap">
+        <svg class="gauge" viewBox="0 0 220 220">
+          <circle class="gauge-track" cx="110" cy="110" r="92" />
+          <circle id="gauge-arc" class="gauge-arc" cx="110" cy="110" r="92" />
+        </svg>
+        <div class="gauge-center">
+          <div id="focus-num" class="focus-num">--</div>
+          <div id="focus-state" class="focus-state">warming up</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live waveform -->
+    <section class="card wave-card">
+      <div class="card-head">
+        <h2>Live EEG <span class="sub">(filtered: 50 Hz notch + 1–40 Hz band)</span></h2>
+        <span id="eng-readout" class="hint mono">engagement —</span>
+      </div>
+      <canvas id="wave" class="wave"></canvas>
+    </section>
+
+    <!-- Band powers -->
+    <section class="card bands-card">
+      <div class="card-head"><h2>Brainwave bands</h2></div>
+      <div class="bands">
+        <div class="band"><div class="band-label"><span>Theta</span><span class="band-freq">4–8 Hz</span></div><div class="bar"><div id="bar-theta" class="bar-fill theta"></div></div></div>
+        <div class="band"><div class="band-label"><span>Alpha</span><span class="band-freq">8–12 Hz</span></div><div class="bar"><div id="bar-alpha" class="bar-fill alpha"></div></div></div>
+        <div class="band"><div class="band-label"><span>Beta</span><span class="band-freq">12–30 Hz</span></div><div class="bar"><div id="bar-beta" class="bar-fill beta"></div></div></div>
+      </div>
+      <p class="formula">engagement = beta / (alpha + theta)</p>
+    </section>
+
+    <!-- Controls -->
+    <section class="card controls-card">
+      <div class="card-head"><h2>Calibration</h2><span class="hint">teaches the score what your focus looks like</span></div>
+      <div id="calib-status" class="calib-status">Not calibrated — score is relative to recent activity. Run both steps for a personalised score.</div>
+      <div class="btn-row">
+        <button id="btn-focused" class="btn btn-focus">Record 60s focused</button>
+        <button id="btn-zoned" class="btn btn-zone">Record 60s zoned-out</button>
+      </div>
+      <div class="btn-row">
+        <button id="btn-cancel" class="btn btn-ghost" disabled>Cancel</button>
+        <button id="btn-reset" class="btn btn-ghost">Reset baseline</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="card-head"><h2>Source</h2></div>
+      <div class="btn-row">
+        <button id="btn-csv" class="btn btn-ghost">Replay CSV (demo)</button>
+        <select id="port-select" class="select"><option value="">serial port…</option></select>
+        <button id="btn-serial" class="btn btn-ghost">Go live</button>
+      </div>
+      <p id="source-msg" class="hint"></p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    EEG attention is a proxy signal — FlowState reports <em>relative</em>, per-user change, not a diagnosis.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -20,12 +20,33 @@ See [docs/problem-statement.md](docs/problem-statement.md) for the full problem 
 - Python (NumPy, SciPy for signal processing)
 - Streamlit/Flask dashboard for live visualization
 
+## Quick start
+
+```bash
+pip install -r requirements.txt
+
+# 1) Sanity-check a recording (shows how much 50 Hz noise the filter removes)
+python analyze_csv.py
+
+# 2) Launch the live dashboard (replays the sample CSV by default)
+python -m dashboard.app
+#   then open http://127.0.0.1:5000
+```
+
+On Windows you can just double-click [run_dashboard.bat](run_dashboard.bat).
+
+**Live mode (Arduino UNO R4):** flash [firmware/flowstate_eeg/flowstate_eeg.ino](firmware/flowstate_eeg/flowstate_eeg.ino), then run `python -m dashboard.app --serial COM3` (use your port), or pick the port in the UI and click **Go live**.
+
+**Calibrate** for a personalised score: click *Record 60s focused* (read something hard), then *Record 60s zoned-out* (let your mind wander). The focus score then maps between your two baselines.
+
 ## Project layout
-- [firmware/](firmware/) — ESP32 Arduino sketch for ADC sampling and streaming
+- [firmware/](firmware/) — Arduino UNO R4 sketch (`flowstate_eeg`) that streams A0 over serial
 - [signal_processing/](signal_processing/) — filtering, FFT band power, focus score pipeline
-- [dashboard/](dashboard/) — live Streamlit/Flask dashboard
-- [calibration/](calibration/) — per-user baseline calibration routine and data
-- [docs/](docs/) — hardware setup, signal pipeline notes, references
+- [dashboard/](dashboard/) — Flask server + live web dashboard (SSE, calibration, source switching)
+- [calibration/](calibration/) — per-user baseline calibration notes and data
+- [sample_data/](sample_data/) — a recorded EEG CSV so the demo runs with no hardware
+- [analyze_csv.py](analyze_csv.py) — offline before/after filtering report
+- [docs/](docs/) — hardware setup, signal pipeline notes, problem statement
 
 ## Note
 Focus scores are relative, calibrated per-user — EEG-based attention detection is a proxy signal, not a diagnostic tool.
