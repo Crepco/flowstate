@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Data
+calibration/data/*
+!calibration/data/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
