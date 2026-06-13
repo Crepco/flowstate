@@ -9,6 +9,7 @@ Turns raw forehead-EEG samples into a relative focus score:
 
 from .filters import notch_filter, bandpass_filter, clean_signal
 from .bands import BANDS, band_powers, engagement_index
+from .classifier import LogisticFocusClassifier, feature_vector, FEATURE_NAMES
 from .pipeline import FocusPipeline
 
 __all__ = [
@@ -18,5 +19,8 @@ __all__ = [
     "BANDS",
     "band_powers",
     "engagement_index",
+    "LogisticFocusClassifier",
+    "feature_vector",
+    "FEATURE_NAMES",
     "FocusPipeline",
 ]

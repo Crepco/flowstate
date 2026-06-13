@@ -40,7 +40,9 @@ class Engine:
     def __init__(self, fs=500, powerline=50.0):
         self.fs = fs
         self.powerline = powerline
-        self.pipeline = FocusPipeline(fs=fs, powerline=powerline)
+        model_path = ROOT / "calibration" / "model.json"
+        self.pipeline = FocusPipeline(fs=fs, powerline=powerline,
+                                      model_path=model_path)
         self._lock = threading.Lock()
         self._latest = self.pipeline.compute()
         self._stop = threading.Event()

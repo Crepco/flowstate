@@ -27,6 +27,7 @@
       <span id="chip-conn" class="chip chip-muted"><span class="led"></span>connecting…</span>
       <span id="chip-source" class="chip chip-muted">source: —</span>
       <span id="chip-quality" class="chip chip-muted">signal: —</span>
+      <span id="chip-mode" class="chip chip-muted">model: —</span>
       <span id="chip-calib" class="chip chip-muted">uncalibrated</span>
     </div>
   </header>
@@ -77,8 +78,16 @@
       </div>
       <div class="btn-row">
         <button id="btn-cancel" class="btn btn-ghost" disabled>Cancel</button>
-        <button id="btn-reset" class="btn btn-ghost">Reset baseline</button>
+        <button id="btn-reset" class="btn btn-ghost">Reset / retrain</button>
       </div>
+
+      <div class="divider"></div>
+
+      <div class="card-head"><h2>Nudges</h2><span class="hint">alert when you zone out</span></div>
+      <div class="btn-row">
+        <button id="btn-nudge" class="btn btn-ghost">🔕 Enable nudges</button>
+      </div>
+      <p id="nudge-msg" class="hint"></p>
 
       <div class="divider"></div>
 

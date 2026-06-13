@@ -37,7 +37,9 @@ On Windows you can just double-click [run_dashboard.bat](run_dashboard.bat).
 
 **Live mode (Arduino UNO R4):** flash [firmware/flowstate_eeg/flowstate_eeg.ino](firmware/flowstate_eeg/flowstate_eeg.ino), then run `python -m dashboard.app --serial COM3` (use your port), or pick the port in the UI and click **Go live**.
 
-**Calibrate** for a personalised score: click *Record 60s focused* (read something hard), then *Record 60s zoned-out* (let your mind wander). The focus score then maps between your two baselines.
+**Calibrate** for a personalised score: click *Record 60s focused* (read something hard), then *Record 60s zoned-out* (let your mind wander). Once both are recorded, FlowState **trains a logistic-regression classifier** on your two states (it reports its accuracy) and scores you with the learned model. Until then it falls back to a baseline-relative score, so it works immediately. The trained model is saved to `calibration/model.json` and reloads on restart.
+
+**Nudges:** click *Enable nudges* to get a sound chime + desktop notification the moment you zone out (and a positive cue when you refocus).
 
 ## Project layout
 - [firmware/](firmware/) — Arduino UNO R4 sketch (`flowstate_eeg`) that streams A0 over serial

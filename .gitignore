@@ -8,6 +8,9 @@ venv/
 calibration/data/*
 !calibration/data/.gitkeep
 
+# Trained per-user model
+calibration/model.json
+
 # Logs
 *.log
 

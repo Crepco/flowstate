@@ -126,6 +126,7 @@ body {
 .btn:hover { background: rgba(255,255,255,.09); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.on { background: linear-gradient(135deg, rgba(52,224,196,.28), rgba(52,224,196,.12)); border-color: rgba(52,224,196,.45); color: #eafff9; }
 .btn-focus { background: linear-gradient(135deg, rgba(52,224,196,.22), rgba(52,224,196,.10)); border-color: rgba(52,224,196,.35); }
 .btn-zone { background: linear-gradient(135deg, rgba(255,180,84,.20), rgba(255,180,84,.08)); border-color: rgba(255,180,84,.32); }
 .select {

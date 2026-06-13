@@ -13,7 +13,11 @@ Python pipeline that turns raw EEG samples into a real-time focus score.
    - Alpha: 8–12Hz
    - Beta: 12–30Hz
 5. **Focus metric**: engagement index = beta / (alpha + theta)
-6. **Smoothing/thresholding**: rolling average + per-user threshold to classify focused vs. zoned-out
+6. **Scoring** (best available wins):
+   - **ML model** ([classifier.py](classifier.py)) — logistic regression trained on your focused vs zoned calibration windows; outputs P(focused)
+   - **Calibrated** — linear map of engagement between your zoned/focused baselines
+   - **Relative** — engagement z-scored against recent history (works with no calibration)
+7. **Smoothing/alert**: EMA smoothing + sustained-low-score alert for zone-out detection
 
 ## Artifact handling
 - Amplitude-based rejection for eye blinks / jaw clenching / movement artifacts

@@ -4,26 +4,31 @@ Feed it raw samples as they arrive (``add_samples``). Every so often call
 ``compute()`` to get the current state: cleaned waveform tail, band powers,
 engagement index, a 0-100 focus score, and an alert flag.
 
-Two scoring modes:
+Three scoring modes, best-available wins:
 
-* **Uncalibrated** (works immediately): the score is the engagement index
-  z-scored against its own recent history and squashed to 0-100. It centres
-  around 50 and moves up/down with *relative* changes in focus.
+* **ML model** (after calibrating both states): a logistic-regression
+  classifier trained on your focused vs zoned recordings outputs P(focused).
+  Most robust; reports a training accuracy.
 
-* **Calibrated** (after the user records a focused minute + a zoned-out
-  minute): the score linearly maps engagement between the zoned baseline (0)
-  and the focused baseline (100). This is the honest, personalised mode.
+* **Calibrated** (engagement baselines, no model yet): the score linearly
+  maps the engagement index between the zoned baseline (0) and focused (100).
+
+* **Relative / uncalibrated** (works immediately): the engagement index
+  z-scored against its own recent history and squashed to 0-100.
 """
 
 from __future__ import annotations
 
+import json
 import math
 import time
 from collections import deque
+from pathlib import Path
 
 import numpy as np
 
 from .bands import band_powers, engagement_index, relative_band_powers
+from .classifier import LogisticFocusClassifier, feature_vector
 from .filters import clean_signal
 
 
@@ -39,6 +44,7 @@ class FocusPipeline:
         ema_alpha=0.2,
         alert_threshold=35.0,
         alert_hold_sec=4.0,
+        model_path=None,
     ):
         self.fs = int(fs)
         self.powerline = powerline
@@ -46,6 +52,7 @@ class FocusPipeline:
         self.ema_alpha = ema_alpha
         self.alert_threshold = alert_threshold
         self.alert_hold_sec = alert_hold_sec
+        self.model_path = str(model_path) if model_path else None
 
         # Raw ring buffer of the most recent samples.
         self._raw = deque(maxlen=int(history_sec * fs))
@@ -67,11 +74,18 @@ class FocusPipeline:
         self._calib_values = []
         self._calib_until = 0.0
 
+        # ML classifier + collected feature vectors per labelled state.
+        self.classifier = LogisticFocusClassifier()
+        self._calib_feats = {"focused": [], "zoned": []}
+
         # Alert state machine.
         self._below_since = None
         self.alert = False
 
         self.samples_seen = 0
+
+        if self.model_path:
+            self.load_model()
 
     # ------------------------------------------------------------------ input
     def add_samples(self, values):
@@ -86,6 +100,7 @@ class FocusPipeline:
             raise ValueError("label must be 'focused' or 'zoned'")
         self._calib_label = label
         self._calib_values = []
+        self._calib_feats[label] = []  # re-recording this state replaces it
         self._calib_until = time.time() + seconds
 
     def cancel_calibration(self):
@@ -105,17 +120,44 @@ class FocusPipeline:
 
     def reset_calibration(self):
         self.baseline = {"focused": None, "zoned": None}
+        self._calib_feats = {"focused": [], "zoned": []}
+        self.classifier = LogisticFocusClassifier()
+        if self.model_path:
+            try:
+                Path(self.model_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    @property
+    def score_mode(self):
+        if self.classifier.trained:
+            return "ml"
+        if self.is_calibrated:
+            return "calibrated"
+        return "relative"
+
+    def _maybe_train(self):
+        """Train the classifier once both states have enough feature data."""
+        f = self._calib_feats["focused"]
+        z = self._calib_feats["zoned"]
+        if len(f) >= 5 and len(z) >= 5:
+            if self.classifier.fit(f, z) and self.model_path:
+                self.save_model()
 
     # --------------------------------------------------------------- scoring
-    def _score_from_engagement(self, eng):
-        """Map an engagement value to 0-100."""
+    def _score(self, eng, feats):
+        """Map current features/engagement to a 0-100 focus score."""
+        # Best mode: learned classifier.
+        if self.classifier.trained:
+            return 100.0 * self.classifier.focus_prob(feats)
+
+        # Calibrated linear map on the engagement index.
         if self.is_calibrated:
             lo = self.baseline["zoned"]
             hi = self.baseline["focused"]
             if hi == lo:
                 return 50.0
-            score = 100.0 * (eng - lo) / (hi - lo)
-            return float(np.clip(score, 0.0, 100.0))
+            return float(np.clip(100.0 * (eng - lo) / (hi - lo), 0.0, 100.0))
 
         # Uncalibrated: z-score against recent history -> logistic -> 0-100.
         if len(self._eng_hist) < 8:
@@ -126,6 +168,33 @@ class FocusPipeline:
             return 50.0
         z = (eng - mean) / std
         return float(100.0 / (1.0 + math.exp(-z)))
+
+    # ----------------------------------------------------------- persistence
+    def save_model(self):
+        if not self.model_path:
+            return
+        payload = {
+            "baseline": self.baseline,
+            "classifier": self.classifier.to_dict(),
+            "fs": self.fs,
+        }
+        path = Path(self.model_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2))
+
+    def load_model(self):
+        if not self.model_path:
+            return
+        path = Path(self.model_path)
+        if not path.exists():
+            return
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return
+        base = data.get("baseline") or {}
+        self.baseline = {"focused": base.get("focused"), "zoned": base.get("zoned")}
+        self.classifier = LogisticFocusClassifier.from_dict(data.get("classifier"))
 
     # ---------------------------------------------------------------- compute
     def compute(self):
@@ -142,6 +211,13 @@ class FocusPipeline:
             "calibrating": self.calibrating,
             "calibrated": self.is_calibrated,
             "baseline": dict(self.baseline),
+            "score_mode": self.score_mode,
+            "classifier": {
+                "trained": self.classifier.trained,
+                "accuracy": round(self.classifier.train_acc, 3),
+                "n_focused": self.classifier.n_focused,
+                "n_zoned": self.classifier.n_zoned,
+            },
         }
 
         if not ready:
@@ -164,20 +240,23 @@ class FocusPipeline:
 
         powers = band_powers(cleaned, self.fs)
         eng = engagement_index(powers)
+        feats = feature_vector(powers)
         self._eng_hist.append(eng)
 
-        # Feed calibration if active.
+        # Feed calibration if active: collect both the engagement value (for
+        # the linear-map fallback) and the feature vector (for the ML model).
         if self.calibrating:
+            label = self._calib_label
             self._calib_values.append(eng)
+            self._calib_feats[label].append(feats)
             if now >= self._calib_until and self._calib_values:
-                self.baseline[self._calib_label] = float(
-                    np.median(self._calib_values)
-                )
+                self.baseline[label] = float(np.median(self._calib_values))
                 self._calib_label = None
                 self._calib_values = []
+                self._maybe_train()  # trains once both states are recorded
 
         # Focus score (EMA-smoothed).
-        target = self._score_from_engagement(eng)
+        target = self._score(eng, feats)
         if not self._focus_init:
             self.focus = target
             self._focus_init = True
