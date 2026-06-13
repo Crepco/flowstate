@@ -42,8 +42,8 @@ class FocusPipeline:
         display_hz=100,
         display_sec=4.0,
         ema_alpha=0.2,
-        alert_threshold=35.0,
-        alert_hold_sec=4.0,
+        alert_threshold=49.0,
+        alert_hold_sec=0.0,
         model_path=None,
     ):
         self.fs = int(fs)
