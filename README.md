@@ -27,5 +27,4 @@ See [docs/problem-statement.md](docs/problem-statement.md) for the full problem 
 - [calibration/](calibration/) — per-user baseline calibration routine and data
 - [docs/](docs/) — hardware setup, signal pipeline notes, references
 
-## Note
-Focus scores are relative, calibrated per-user — EEG-based attention detection is a proxy signal, not a diagnostic tool.
+
