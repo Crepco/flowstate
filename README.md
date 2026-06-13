@@ -2,6 +2,8 @@
 
 Real-time attention monitoring using EEG signals from the [BioAmp EXG Pill](https://chords.upsidedownlabs.tech/) and ESP32. Detects when a user mentally "zones out" while reading/studying or attending an online class, and alerts them to refocus.
 
+See [docs/problem-statement.md](docs/problem-statement.md) for the full problem statement and solution writeup.
+
 ## How it works
 - Forehead EEG signal captured via BioAmp EXG Pill → ESP32 ADC → streamed to [Upside Down Labs Chords](https://chords.upsidedownlabs.tech/) (or our own serial pipeline)
 - Python pipeline applies bandpass + notch filtering, then FFT-based band power analysis (theta/alpha/beta)
