@@ -23,6 +23,7 @@ BANDS = {
     "theta": (4.0, 8.0),
     "alpha": (8.0, 12.0),
     "beta": (12.0, 30.0),
+    "gamma": (30.0, 40.0),
 }
 
 # numpy 2.0 renamed trapz -> trapezoid (and 2.x dropped the old name); support both.

@@ -4,13 +4,13 @@ const GAUGE_CIRC = 2 * Math.PI * 92; // matches r=92 in the SVG
 
 // ---- color helpers ----------------------------------------------------------
 function focusColor(score) {
-  // red (0) -> amber (50) -> teal (100)
+  // warm neutral orange -> white
   if (score >= 50) {
     const t = (score - 50) / 50;
-    return mix([255, 180, 84], [52, 224, 196], t);
+    return mix([205, 135, 90], [255, 255, 255], t);
   }
   const t = score / 50;
-  return mix([255, 94, 108], [255, 180, 84], t);
+  return mix([95, 75, 65], [205, 135, 90], t);
 }
 function mix(a, b, t) {
   const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
@@ -20,7 +20,11 @@ function mix(a, b, t) {
 // ---- waveform canvas --------------------------------------------------------
 const canvas = $("wave");
 const ctx = canvas.getContext("2d");
+const bandsCanvas = $("bands-chart");
+const bandsCtx = bandsCanvas ? bandsCanvas.getContext("2d") : null;
 let waveData = [];
+let bandHistory = [];
+const MAX_HISTORY = 150;
 
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
@@ -28,6 +32,13 @@ function resizeCanvas() {
   canvas.width = r.width * dpr;
   canvas.height = r.height * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  if (bandsCanvas) {
+    const br = bandsCanvas.getBoundingClientRect();
+    bandsCanvas.width = br.width * dpr;
+    bandsCanvas.height = br.height * dpr;
+    bandsCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
 }
 window.addEventListener("resize", resizeCanvas);
 
@@ -44,11 +55,12 @@ function drawWave() {
   if (n > 1) {
     let maxAbs = 1e-9;
     for (const v of waveData) maxAbs = Math.max(maxAbs, Math.abs(v));
+    
+    // -- Dashboard Wave --
     const amp = (h / 2) * 0.82 / maxAbs;
-
     const grad = ctx.createLinearGradient(0, 0, w, 0);
-    grad.addColorStop(0, "rgba(52,224,196,0.15)");
-    grad.addColorStop(1, "rgba(79,157,255,1)");
+    grad.addColorStop(0, "rgba(255,255,255,0.05)");
+    grad.addColorStop(1, "rgba(255,255,255,0.5)");
     ctx.strokeStyle = grad;
     ctx.lineWidth = 2;
     ctx.lineJoin = "round";
@@ -60,7 +72,63 @@ function drawWave() {
     }
     ctx.stroke();
   }
+
+  drawBandsChart();
   requestAnimationFrame(drawWave);
+}
+
+function drawBandsChart() {
+  if (!bandsCtx) return;
+  const w = bandsCanvas.clientWidth, h = bandsCanvas.clientHeight;
+  bandsCtx.clearRect(0, 0, w, h);
+
+  // draw horizontal grid lines
+  bandsCtx.strokeStyle = "rgba(255,255,255,0.04)";
+  bandsCtx.lineWidth = 1;
+  for (let i = 1; i <= 3; i++) {
+    const y = h - (h * i * 0.25);
+    bandsCtx.beginPath();
+    bandsCtx.moveTo(0, y);
+    bandsCtx.lineTo(w, y);
+    bandsCtx.stroke();
+  }
+
+  const n = bandHistory.length;
+  if (n < 2) return;
+
+  // auto-scale dynamically
+  let maxVal = 0.25;
+  for (const p of bandHistory) {
+    maxVal = Math.max(maxVal, p.alpha, p.beta, p.gamma);
+  }
+  maxVal *= 1.1; // 10% headroom
+
+  drawBandLine("alpha", "#8aa2b3", maxVal);
+  drawBandLine("beta", "#95a494", maxVal);
+  drawBandLine("gamma", "#c6a296", maxVal);
+}
+
+function drawBandLine(key, color, maxVal) {
+  const w = bandsCanvas.clientWidth, h = bandsCanvas.clientHeight;
+  const n = bandHistory.length;
+
+  bandsCtx.strokeStyle = color;
+  bandsCtx.lineWidth = 2.5;
+  bandsCtx.lineJoin = "round";
+  bandsCtx.lineCap = "round";
+
+  bandsCtx.shadowBlur = 6;
+  bandsCtx.shadowColor = color + "40";
+
+  bandsCtx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = (i / (MAX_HISTORY - 1)) * w;
+    const val = bandHistory[i][key];
+    const y = h - (val / maxVal) * h;
+    i === 0 ? bandsCtx.moveTo(x, y) : bandsCtx.lineTo(x, y);
+  }
+  bandsCtx.stroke();
+  bandsCtx.shadowBlur = 0;
 }
 
 // ---- render a packet --------------------------------------------------------
@@ -82,12 +150,18 @@ function render(p) {
   // engagement readout
   $("eng-readout").textContent = p.ready ? `engagement ${(p.engagement ?? 0).toFixed(2)}` : "engagement —";
 
-  // band bars (relative powers 0..1)
-  const br = p.band_rel || {};
-  const maxRel = Math.max(0.0001, br.theta || 0, br.alpha || 0, br.beta || 0);
-  $("bar-theta").style.width = `${((br.theta || 0) / maxRel) * 100}%`;
-  $("bar-alpha").style.width = `${((br.alpha || 0) / maxRel) * 100}%`;
-  $("bar-beta").style.width = `${((br.beta || 0) / maxRel) * 100}%`;
+  // append band powers to rolling history
+  if (p.ready) {
+    const br = p.band_rel || {};
+    bandHistory.push({
+      alpha: br.alpha ?? 0,
+      beta: br.beta ?? 0,
+      gamma: br.gamma ?? 0
+    });
+    if (bandHistory.length > MAX_HISTORY) {
+      bandHistory.shift();
+    }
+  }
 
   // chips
   setChip("chip-source", `source: ${shortSource(p.source)}`, p.source && p.source !== "none" ? "ok" : "muted");
@@ -97,8 +171,18 @@ function render(p) {
 
   // alert banner + nudges (fire only on state transitions)
   $("alert-banner").classList.toggle("hidden", !p.alert);
-  if (p.alert && !prevAlert) onZoneOut();
-  if (!p.alert && prevAlert) onRecover();
+  if (p.alert && !prevAlert) {
+    onZoneOut();
+    zoneOutStartTime = Date.now();
+  } else if (p.alert && prevAlert) {
+    if (zoneOutStartTime && !sirenPlaying && (Date.now() - zoneOutStartTime > 7000)) {
+      startSiren();
+    }
+  } else if (!p.alert && prevAlert) {
+    onRecover();
+    zoneOutStartTime = null;
+    stopSiren();
+  }
   prevAlert = p.alert;
 
   // source error surfacing
@@ -126,6 +210,7 @@ function shortSource(s) {
 }
 function setChip(id, text, cls) {
   const el = $(id);
+  if (!el) return;
   el.textContent = "";
   if (cls === "ok" || cls === "warn" || cls === "bad") {
     const led = document.createElement("span"); led.className = "led"; el.appendChild(led);
@@ -169,6 +254,9 @@ function setCalib(p) {
 let nudgeOn = false;
 let prevAlert = false;
 let audioCtx = null;
+let zoneOutStartTime = null;
+let sirenPlaying = false;
+let sirenInterval = null;
 
 function ensureAudio() {
   if (!audioCtx) {
@@ -189,6 +277,27 @@ function tone(freq, startAt, dur, peak = 0.18, type = "sine") {
 }
 const playDrift = () => { ensureAudio(); tone(440, 0, 0.18); tone(294, 0.16, 0.32); };   // descending = uh-oh
 const playRecover = () => { ensureAudio(); tone(523, 0, 0.13); tone(784, 0.11, 0.22); };  // ascending = nice
+
+function playSirenTone() {
+  ensureAudio();
+  tone(580, 0, 0.4, 0.2, "square");
+  tone(435, 0.4, 0.4, 0.2, "square");
+}
+
+function startSiren() {
+  if (!nudgeOn) return;
+  sirenPlaying = true;
+  playSirenTone();
+  sirenInterval = setInterval(playSirenTone, 800);
+}
+
+function stopSiren() {
+  sirenPlaying = false;
+  if (sirenInterval) {
+    clearInterval(sirenInterval);
+    sirenInterval = null;
+  }
+}
 
 function notify(title, body) {
   if ("Notification" in window && Notification.permission === "granted") {

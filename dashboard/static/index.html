@@ -6,7 +6,7 @@
   <title>FlowState — focus monitor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@1,500;1,600&family=Space+Grotesk:wght@300;400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
@@ -15,17 +15,25 @@
     <span>You're zoning out — refocus.</span>
   </div>
 
+  <div class="dashboard-wrap">
   <header class="topbar">
     <div class="brand">
-      <div class="logo">🧠</div>
+      <div class="logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
       <div>
-        <h1>FlowState</h1>
+        <h1 class="brand-title">FlowState</h1>
         <p class="tag">real-time focus from forehead EEG</p>
       </div>
     </div>
+    <div class="topbar-action">
+      <button id="btn-csv" class="btn btn-csv">Replay CSV</button>
+      <select id="port-select" class="select"><option value="">serial port…</option></select>
+      <button id="btn-serial" class="btn btn-serial">Go live</button>
+      <span id="source-msg" class="hint"></span>
+    </div>
     <div class="status-chips">
       <span id="chip-conn" class="chip chip-muted"><span class="led"></span>connecting…</span>
-      <span id="chip-source" class="chip chip-muted">source: —</span>
       <span id="chip-quality" class="chip chip-muted">signal: —</span>
       <span id="chip-mode" class="chip chip-muted">model: —</span>
       <span id="chip-calib" class="chip chip-muted">uncalibrated</span>
@@ -33,37 +41,39 @@
   </header>
 
   <main class="grid">
-    <!-- Focus score -->
-    <section class="card focus-card">
-      <div class="card-head"><h2>Focus score</h2><span class="hint">relative to your baseline</span></div>
-      <div class="gauge-wrap">
-        <svg class="gauge" viewBox="0 0 220 220">
-          <circle class="gauge-track" cx="110" cy="110" r="92" />
-          <circle id="gauge-arc" class="gauge-arc" cx="110" cy="110" r="92" />
-        </svg>
-        <div class="gauge-center">
-          <div id="focus-num" class="focus-num">--</div>
-          <div id="focus-state" class="focus-state">warming up</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Live waveform -->
-    <section class="card wave-card">
+    <!-- Combined Focus + Wave Hero -->
+    <section class="card combined-hero-card">
       <div class="card-head">
-        <h2>Live EEG <span class="sub">(filtered: 50 Hz notch + 1–40 Hz band)</span></h2>
+        <h2>Live Focus & EEG <span class="sub">(filtered: 50 Hz notch + 1–40 Hz band)</span></h2>
         <span id="eng-readout" class="hint mono">engagement —</span>
       </div>
-      <canvas id="wave" class="wave"></canvas>
+      <div class="combined-wrap">
+        <canvas id="wave" class="wave-bg"></canvas>
+        <div class="gauge-wrap-overlay">
+          <svg class="gauge" viewBox="0 0 220 220">
+            <!-- Cuts off the wave -->
+            <circle cx="110" cy="110" r="92" fill="#000000" />
+            <circle class="gauge-track" cx="110" cy="110" r="92" />
+            <circle id="gauge-arc" class="gauge-arc" cx="110" cy="110" r="92" />
+          </svg>
+          <div class="gauge-center">
+            <div id="focus-num" class="focus-num">--</div>
+            <div id="focus-state" class="focus-state">warming up</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Band powers -->
     <section class="card bands-card">
       <div class="card-head"><h2>Brainwave bands</h2></div>
-      <div class="bands">
-        <div class="band"><div class="band-label"><span>Theta</span><span class="band-freq">4–8 Hz</span></div><div class="bar"><div id="bar-theta" class="bar-fill theta"></div></div></div>
-        <div class="band"><div class="band-label"><span>Alpha</span><span class="band-freq">8–12 Hz</span></div><div class="bar"><div id="bar-alpha" class="bar-fill alpha"></div></div></div>
-        <div class="band"><div class="band-label"><span>Beta</span><span class="band-freq">12–30 Hz</span></div><div class="bar"><div id="bar-beta" class="bar-fill beta"></div></div></div>
+      <div class="chart-legend">
+        <div class="legend-item"><span class="legend-color alpha-color"></span><span>Alpha (8–12 Hz)</span></div>
+        <div class="legend-item"><span class="legend-color beta-color"></span><span>Beta (12–30 Hz)</span></div>
+        <div class="legend-item"><span class="legend-color gamma-color"></span><span>Gamma (30–40 Hz)</span></div>
+      </div>
+      <div class="bands-chart-wrap">
+        <canvas id="bands-chart"></canvas>
       </div>
       <p class="formula">engagement = beta / (alpha + theta)</p>
     </section>
@@ -89,21 +99,14 @@
       </div>
       <p id="nudge-msg" class="hint"></p>
 
-      <div class="divider"></div>
 
-      <div class="card-head"><h2>Source</h2></div>
-      <div class="btn-row">
-        <button id="btn-csv" class="btn btn-ghost">Replay CSV (demo)</button>
-        <select id="port-select" class="select"><option value="">serial port…</option></select>
-        <button id="btn-serial" class="btn btn-ghost">Go live</button>
-      </div>
-      <p id="source-msg" class="hint"></p>
     </section>
   </main>
 
   <footer class="foot">
     EEG attention is a proxy signal — FlowState reports <em>relative</em>, per-user change, not a diagnosis.
   </footer>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>
