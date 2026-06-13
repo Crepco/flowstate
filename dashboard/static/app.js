@@ -168,6 +168,7 @@ function render(p) {
   setQuality(p.quality);
   setMode(p);
   setCalib(p);
+  updateSessionUI(p.session);
 
   // alert banner + nudges (fire only on state transitions)
   $("alert-banner").classList.toggle("hidden", !p.alert);
@@ -380,8 +381,208 @@ async function loadPorts() {
   } catch (_) {}
 }
 
+// ---- session ----------------------------------------------------------------
+let sessionActive = false;
+let sessionLockUntil = 0;  // ignore packet reconciliation right after a click
+
+function fmtClock(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+function fmtDuration(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m ? `${m}m ${s}s` : `${s}s`;
+}
+
+function setSessionUI(active, elapsed) {
+  sessionActive = active;
+  $("btn-session").classList.toggle("recording", active);
+  $("session-label").textContent = active ? "End session" : "Start session";
+  const timer = $("session-timer");
+  if (active) { timer.classList.remove("hidden"); timer.textContent = fmtClock(elapsed || 0); }
+  else { timer.classList.add("hidden"); }
+}
+
+function updateSessionUI(sess) {
+  if (!sess || Date.now() < sessionLockUntil) return;  // don't fight a recent click
+  if (sess.active) setSessionUI(true, sess.elapsed);
+  else if (sessionActive) setSessionUI(false);
+}
+
+$("btn-session").onclick = async () => {
+  ensureAudio();
+  if (!sessionActive) {
+    setSessionUI(true, 0);                       // optimistic
+    await post("/api/session/start");
+  } else {
+    sessionLockUntil = Date.now() + 1500;        // avoid flicker-back while server catches up
+    setSessionUI(false);
+    const r = await post("/api/session/stop");
+    if (r && r.summary) showSummary(r.summary);
+  }
+};
+
+$("summary-close").onclick = () => $("summary-overlay").classList.add("hidden");
+$("summary-overlay").onclick = (e) => {
+  if (e.target.id === "summary-overlay") $("summary-overlay").classList.add("hidden");
+};
+
+// ---- session summary --------------------------------------------------------
+let lastSummary = null;
+
+function showSummary(s) {
+  lastSummary = s;
+  $("stat-avg").textContent = Math.round(s.avg_focus ?? 0);
+  $("stat-avg").style.color = focusColor(s.avg_focus ?? 0);
+  $("stat-focused").textContent = `${Math.round(s.pct_focused ?? 0)}%`;
+  $("stat-zone").textContent = s.zone_outs ?? 0;
+  $("stat-streak").textContent = fmtClock(s.longest_streak ?? 0);
+  $("summary-duration").textContent = `Duration · ${fmtDuration(s.duration ?? 0)}`;
+  $("summary-insight").innerHTML = buildInsight(s);
+
+  resetChat();
+
+  $("summary-overlay").classList.remove("hidden");
+  // canvas has zero layout while hidden — size & draw once it's visible
+  requestAnimationFrame(() => requestAnimationFrame(() => drawSummaryChart(s.timeline || [])));
+}
+
+function buildInsight(s) {
+  if (!s.n_samples) return "No data captured — start a session and let it run for a bit.";
+  const avg = Math.round(s.avg_focus), pct = Math.round(s.pct_focused), z = s.zone_outs || 0;
+  let verdict;
+  if (pct >= 75) verdict = "a strong, sustained session";
+  else if (pct >= 50) verdict = "a decent session with some drift";
+  else verdict = "a scattered session — lots of drift";
+  const lapses = z === 0 ? "no major lapses" : `${z} lapse${z > 1 ? "s" : ""}`;
+  return `That was <strong>${verdict}</strong>. You averaged a focus score of ` +
+    `<strong>${avg}</strong> and held focus <strong>${pct}%</strong> of the time, with ` +
+    `<strong>${lapses}</strong>. Longest unbroken stretch: <strong>${fmtClock(s.longest_streak || 0)}</strong>.`;
+}
+
+function drawSummaryChart(timeline) {
+  const cv = $("summary-chart");
+  if (!cv) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = cv.getBoundingClientRect();
+  cv.width = rect.width * dpr; cv.height = rect.height * dpr;
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = rect.width, h = rect.height;
+  c.clearRect(0, 0, w, h);
+
+  const pad = { l: 26, r: 12, t: 12, b: 14 };
+  const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+  const yOf = (f) => pad.t + plotH * (1 - f / 100);
+
+  // grid + y labels
+  c.font = "10px 'JetBrains Mono', monospace";
+  c.textAlign = "right"; c.textBaseline = "middle";
+  [0, 50, 100].forEach((v) => {
+    const y = yOf(v);
+    c.strokeStyle = "rgba(255,255,255,0.05)"; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(pad.l, y); c.lineTo(w - pad.r, y); c.stroke();
+    c.fillStyle = "rgba(255,255,255,0.3)"; c.fillText(v, pad.l - 6, y);
+  });
+
+  // zone-out threshold line at 45
+  const yth = yOf(45);
+  c.strokeStyle = "rgba(204,160,128,0.6)"; c.lineWidth = 1.5; c.setLineDash([5, 4]);
+  c.beginPath(); c.moveTo(pad.l, yth); c.lineTo(w - pad.r, yth); c.stroke();
+  c.setLineDash([]);
+
+  const n = timeline.length;
+  if (n < 2) return;
+  const xOf = (i) => pad.l + plotW * (i / (n - 1));
+
+  // area fill
+  const grad = c.createLinearGradient(0, pad.t, 0, pad.t + plotH);
+  grad.addColorStop(0, "rgba(255,255,255,0.18)");
+  grad.addColorStop(1, "rgba(255,255,255,0.01)");
+  c.beginPath();
+  c.moveTo(xOf(0), yOf(timeline[0].f));
+  for (let i = 1; i < n; i++) c.lineTo(xOf(i), yOf(timeline[i].f));
+  c.lineTo(xOf(n - 1), pad.t + plotH); c.lineTo(xOf(0), pad.t + plotH); c.closePath();
+  c.fillStyle = grad; c.fill();
+
+  // focus line
+  c.beginPath();
+  c.moveTo(xOf(0), yOf(timeline[0].f));
+  for (let i = 1; i < n; i++) c.lineTo(xOf(i), yOf(timeline[i].f));
+  c.strokeStyle = "rgba(255,255,255,0.9)"; c.lineWidth = 2; c.lineJoin = "round"; c.stroke();
+}
+
+// ---- AI focus coach chat ----------------------------------------------------
+let chatHistory = [];
+let chatBusy = false;
+
+function addBubble(role, text) {
+  const el = document.createElement("div");
+  el.className = `bubble ${role}`;
+  el.textContent = text;
+  $("chat-messages").appendChild(el);
+  $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
+  return el;
+}
+
+function resetChat() {
+  chatHistory = [];
+  $("chat-messages").innerHTML = "";
+  $("chat-suggest").style.display = "flex";
+  addBubble("coach", "Nice work finishing. Ask me anything about this session — or tap a suggestion below.");
+}
+
+async function sendChat(text) {
+  text = (text || "").trim();
+  if (!text || chatBusy) return;
+  chatBusy = true;
+  $("chat-suggest").style.display = "none";
+  $("chat-send").disabled = true;
+
+  addBubble("user", text);
+  chatHistory.push({ role: "user", content: text });
+  $("chat-input").value = "";
+
+  const typing = addBubble("coach", "");
+  typing.classList.add("typing");
+  typing.innerHTML = "<i></i><i></i><i></i>";
+
+  try {
+    const r = await post("/api/chat", { messages: chatHistory, summary: lastSummary });
+    const reply = (r && r.reply) ? r.reply : "Sorry — I couldn't generate a reply.";
+    typing.classList.remove("typing");
+    typing.textContent = reply;
+    chatHistory.push({ role: "assistant", content: reply });
+    if (r && r.ai === false) $("coach-status").textContent = "offline fallback";
+  } catch (e) {
+    typing.classList.remove("typing");
+    typing.textContent = "Connection error — is the server running?";
+  } finally {
+    chatBusy = false;
+    $("chat-send").disabled = false;
+    $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
+  }
+}
+
+$("chat-send").onclick = () => sendChat($("chat-input").value);
+$("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat($("chat-input").value); });
+$("chat-suggest").addEventListener("click", (e) => {
+  const chip = e.target.closest(".suggest-chip");
+  if (chip) sendChat(chip.dataset.q);
+});
+
+async function loadCoachStatus() {
+  try {
+    const r = await fetch("/api/coach"); const { available } = await r.json();
+    $("coach-status").textContent = available ? "powered by Gemini" : "offline (no API key)";
+  } catch (_) {}
+}
+
 // ---- boot -------------------------------------------------------------------
 resizeCanvas();
 requestAnimationFrame(drawWave);
 connect();
 loadPorts();
+loadCoachStatus();

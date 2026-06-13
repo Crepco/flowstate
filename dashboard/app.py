@@ -10,6 +10,11 @@ Runs a data source in a background thread, feeds the FocusPipeline, and serves:
   POST /api/calibrate        {"label":"focused"|"zoned","seconds":60}
   POST /api/calibrate/cancel
   POST /api/calibrate/reset
+  POST /api/session/start    begin a study session
+  POST /api/session/stop     end it, returns the summary
+  GET  /api/session          current live session state
+  POST /api/chat             ask the Gemini focus coach about a session
+  GET  /api/coach            whether the AI coach (Gemini) is configured
 
 Run:
     python -m dashboard.app                 # CSV demo (auto-detects a CSV)
@@ -27,6 +32,8 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 from signal_processing import FocusPipeline
+from . import coach
+from .session import SessionTracker
 from .sources import CSVReplaySource, SerialSource, list_serial_ports
 
 HERE = Path(__file__).resolve().parent
@@ -43,6 +50,7 @@ class Engine:
         model_path = ROOT / "calibration" / "model.json"
         self.pipeline = FocusPipeline(fs=fs, powerline=powerline,
                                       model_path=model_path)
+        self.session = SessionTracker()
         self._lock = threading.Lock()
         self._latest = self.pipeline.compute()
         self._stop = threading.Event()
@@ -78,6 +86,8 @@ class Engine:
         while True:
             packet = self.pipeline.compute()
             packet["source"] = self.source_name
+            self.session.record(packet)
+            packet["session"] = self.session.state()
             with self._lock:
                 self._latest = packet
             time.sleep(0.05)  # 20 Hz UI updates
@@ -173,6 +183,37 @@ def calibrate_cancel():
 def calibrate_reset():
     engine.pipeline.reset_calibration()
     return jsonify({"ok": True})
+
+
+@app.route("/api/session/start", methods=["POST"])
+def session_start():
+    engine.session.start()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/session/stop", methods=["POST"])
+def session_stop():
+    summary = engine.session.stop()
+    return jsonify({"ok": True, "summary": summary})
+
+
+@app.route("/api/session", methods=["GET"])
+def session_get():
+    return jsonify(engine.session.state())
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    data = request.get_json(force=True, silent=True) or {}
+    messages = data.get("messages", [])
+    summary = data.get("summary") or engine.session.summary()
+    result = coach.chat(messages, summary)
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/coach", methods=["GET"])
+def coach_status():
+    return jsonify({"available": coach.available()})
 
 
 # ----------------------------------------------------------------------- utils

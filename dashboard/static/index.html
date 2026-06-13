@@ -27,6 +27,11 @@
       </div>
     </div>
     <div class="topbar-action">
+      <button id="btn-session" class="btn-session">
+        <span class="session-ico"></span>
+        <span id="session-label">Start session</span>
+        <span id="session-timer" class="session-timer hidden">00:00</span>
+      </button>
       <button id="btn-csv" class="btn btn-csv">Replay CSV</button>
       <select id="port-select" class="select"><option value="">serial port…</option></select>
       <button id="btn-serial" class="btn btn-serial">Go live</button>
@@ -106,6 +111,65 @@
   <footer class="foot">
     EEG attention is a proxy signal — FlowState reports <em>relative</em>, per-user change, not a diagnosis.
   </footer>
+  </div>
+
+  <!-- Session summary -->
+  <div id="summary-overlay" class="overlay hidden">
+    <div class="summary-modal">
+      <button id="summary-close" class="modal-close" aria-label="Close">×</button>
+      <div class="summary-head">
+        <div>
+          <p class="summary-kicker">Session debrief</p>
+          <h2 class="summary-title">Here's how you focused</h2>
+        </div>
+        <span id="summary-duration" class="summary-duration">—</span>
+      </div>
+
+      <div class="summary-stats">
+        <div class="stat">
+          <div class="stat-val" id="stat-avg">—</div>
+          <div class="stat-lbl">Avg focus</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="stat-focused">—</div>
+          <div class="stat-lbl">Time focused</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="stat-zone">—</div>
+          <div class="stat-lbl">Zone-outs</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="stat-streak">—</div>
+          <div class="stat-lbl">Longest streak</div>
+        </div>
+      </div>
+
+      <div class="summary-chart-head">
+        <span>Focus over the session</span>
+        <span class="summary-chart-key"><i class="key-line"></i> focus &nbsp; <i class="key-thresh"></i> zone-out line</span>
+      </div>
+      <div class="summary-chart-wrap"><canvas id="summary-chart"></canvas></div>
+
+      <div id="summary-insight" class="summary-insight"></div>
+
+      <!-- AI focus coach -->
+      <div class="coach">
+        <div class="coach-head">
+          <span class="coach-badge">✦ AI Focus Coach</span>
+          <span id="coach-status" class="hint">powered by Gemini</span>
+        </div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div id="chat-suggest" class="chat-suggest">
+          <button class="suggest-chip" data-q="How was my session overall?">How was my session?</button>
+          <button class="suggest-chip" data-q="Why do you think I lost focus?">Why did I lose focus?</button>
+          <button class="suggest-chip" data-q="Give me 3 tips to focus longer next time.">Tips to focus longer</button>
+        </div>
+        <div class="chat-input-row">
+          <input id="chat-input" class="chat-input" placeholder="Ask your focus coach…" autocomplete="off" />
+          <button id="chat-send" class="chat-send">Send</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>

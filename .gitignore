@@ -11,6 +11,11 @@ calibration/data/*
 # Trained per-user model
 calibration/model.json
 
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
 # Logs
 *.log
 

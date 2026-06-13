@@ -41,6 +41,17 @@ On Windows you can just double-click [run_dashboard.bat](run_dashboard.bat).
 
 **Nudges:** click *Enable nudges* to get a sound chime + desktop notification the moment you zone out (and a positive cue when you refocus).
 
+**Sessions + AI coach:** click *Start session* to track focus over time. *End session* opens a debrief — a focus-over-time graph, your stats (avg focus, % focused, zone-outs, longest streak), and a **Gemini-powered focus coach** you can chat with about how to focus better. The coach is grounded in your actual session data.
+
+To enable the coach, copy `.env.example` to `.env` and add your Google Gemini API key:
+
+```bash
+cp .env.example .env
+# then edit .env:  GEMINI_API_KEY=your-key
+```
+
+Without a key, the coach falls back to built-in, data-aware tips so the demo still works. `.env` is git-ignored — never commit your key.
+
 ## Project layout
 - [firmware/](firmware/) — Arduino UNO R4 sketch (`flowstate_eeg`) that streams A0 over serial
 - [signal_processing/](signal_processing/) — filtering, FFT band power, focus score pipeline
