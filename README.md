@@ -13,6 +13,8 @@ See [docs/problem-statement.md](docs/problem-statement.md) for the full problem 
 ## Use cases
 - **Self-study**: catch the moment you're reading without comprehending, and get nudged back on track
 - **Online classes**: give students (or instructors) visibility into engagement levels during lectures
+- **Driver Drowsiness Detection**: checks whether drivers are alert and awake on long rides.
+
 
 ## Tech stack
 - BioAmp EXG Pill + Arduino UNO R4 (signal acquisition)
