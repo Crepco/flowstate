@@ -5,7 +5,7 @@ Real-time attention monitoring using EEG signals from the [BioAmp EXG Pill](http
 See [docs/problem-statement.md](docs/problem-statement.md) for the full problem statement and solution writeup.
 
 ## How it works
-- Forehead EEG signal captured via BioAmp EXG Pill → ESP32 ADC → streamed to [Upside Down Labs Chords](https://chords.upsidedownlabs.tech/) (or our own serial pipeline)
+- Forehead EEG signal captured via BioAmp EXG Pill → Arduino UNO R4 → streamed to [Upside Down Labs Chords](https://chords.upsidedownlabs.tech/) (or our own serial pipeline)
 - Python pipeline applies bandpass + notch filtering, then FFT-based band power analysis (theta/alpha/beta)
 - Computes a real-time focus score (relative to a personal calibration baseline)
 - Live dashboard visualizes brainwave activity and triggers alerts when attention drops
@@ -15,7 +15,7 @@ See [docs/problem-statement.md](docs/problem-statement.md) for the full problem 
 - **Online classes**: give students (or instructors) visibility into engagement levels during lectures
 
 ## Tech stack
-- BioAmp EXG Pill + ESP32 (signal acquisition)
+- BioAmp EXG Pill + Arduino UNO R4 (signal acquisition)
 - [Chords](https://chords.upsidedownlabs.tech/) web app for signal visualization/recording
 - Python (NumPy, SciPy for signal processing)
 - Streamlit/Flask dashboard for live visualization
