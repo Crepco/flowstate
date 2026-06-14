@@ -1,30 +1,39 @@
 # Signal Processing
 
-Python pipeline that turns raw EEG samples into a real-time focus score.
+Turns raw forehead-EEG samples into a real-time 0–100 focus score. Pure
+Python + NumPy/SciPy, no heavy ML dependency.
 
-## Pipeline stages
-1. **Input**: raw EEG samples from serial/BLE or exported from [Chords](https://chords.upsidedownlabs.tech/) recordings (CSV)
-2. **Filtering**:
-   - Bandpass filter 1–40Hz
-   - Notch filter at 50/60Hz (powerline noise)
-3. **Windowing**: sliding-window FFT (1–2s windows, overlapping)
-4. **Band power extraction**:
-   - Theta: 4–8Hz
-   - Alpha: 8–12Hz
-   - Beta: 12–30Hz
-5. **Focus metric**: engagement index = beta / (alpha + theta)
-6. **Scoring** (best available wins):
-   - **ML model** ([classifier.py](classifier.py)) — logistic regression trained on your focused vs zoned calibration windows; outputs P(focused)
-   - **Calibrated** — linear map of engagement between your zoned/focused baselines
-   - **Relative** — engagement z-scored against recent history (works with no calibration)
-7. **Smoothing/alert**: EMA smoothing + sustained-low-score alert for zone-out detection
+## Pipeline (per 2-second sliding window, ~20×/sec)
 
-## Artifact handling
-- Amplitude-based rejection for eye blinks / jaw clenching / movement artifacts
-- Baseline wander correction for dry-electrode drift
+1. **Filtering** ([filters.py](filters.py)) — `clean_signal()`: 50 Hz notch +
+   100 Hz harmonic notch, then a 1–40 Hz Butterworth bandpass. Uses zero-phase
+   `filtfilt` so wave peaks don't shift in time.
+2. **Band power** ([bands.py](bands.py)) — Welch PSD integrated over the EEG
+   bands (delta, theta, alpha, beta, gamma).
+3. **Engagement index** — `beta / (alpha + theta)`, the standard attention proxy.
+4. **Scoring** (best available wins):
+   - **ML model** ([classifier.py](classifier.py)) — logistic regression trained
+     from scratch on your focused vs zoned calibration windows; outputs P(focused)
+     and reports a training accuracy.
+   - **Calibrated** — linear map of engagement between your zoned/focused baselines.
+   - **Relative** — engagement z-scored against recent history (works with no
+     calibration).
+5. **Smoothing + alert** ([pipeline.py](pipeline.py)) — EMA smoothing, then a
+   sustained-low-score state machine: focus **below 40 for 1 second** raises a
+   zone-out alert. Also computes a signal-quality estimate (powerline vs EEG power).
 
-## TODO
-- [ ] Serial reader + buffering logic
-- [ ] Bandpass/notch filters (`scipy.signal`)
-- [ ] Sliding-window FFT + band power extraction
-- [ ] Focus score calculation
+## Files
+
+| File | Role |
+|------|------|
+| [filters.py](filters.py) | notch + bandpass cleanup |
+| [bands.py](bands.py) | Welch band powers + engagement index |
+| [classifier.py](classifier.py) | from-scratch logistic-regression focus classifier |
+| [pipeline.py](pipeline.py) | the orchestrator: buffering, scoring, calibration, alerts |
+
+## Note on threads
+
+[`__init__.py`](__init__.py) pins BLAS/OpenMP to a single thread before NumPy
+loads — the Flask server and the compute loop both call SciPy from different
+threads, and multi-threaded OpenBLAS was exhausting its per-thread memory pool.
+Our FFT windows are tiny, so single-threaded costs nothing.

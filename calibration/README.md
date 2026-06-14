@@ -1,19 +1,29 @@
 # Calibration
 
-Per-user baseline calibration routine and stored calibration data.
+Per-user calibration and the stored model. EEG differs hugely between people, so
+an absolute focus threshold would be meaningless — calibration tunes the score to
+*your* brain and lets us report a relative change from your personal baseline.
 
-## Why
-There's no universal "zoning out" signature — alpha increase can mean relaxed-focus, drowsiness, or mind-wandering. Calibration lets us frame results as a **relative change from personal baseline** rather than an absolute focused/unfocused classification.
+## Routine (from the dashboard)
 
-## Routine
-1. User does 1 minute of focused reading
-2. User does 1 minute of deliberate zoning out (e.g. staring blankly, mind-wandering)
-3. Compute baseline band powers and engagement index for both states
-4. Use these to set personal thresholds for the focus score
+1. Click **Capture focused** and do ~60s of hard focused reading.
+2. Click **Capture zoned-out** and let your mind wander for ~60s.
+3. FlowState records the engagement baseline and feature windows for each state.
+4. Once both states have enough windows, it trains a logistic-regression
+   classifier on them and switches the score to the learned model.
+
+You can re-record either state at any time to retrain, or **Reset / retrain** to
+start over.
 
 ## Storage
-- `data/` — recorded calibration sessions per user (raw + processed)
 
-## TODO
-- [ ] Define calibration session file format
-- [ ] Calibration script (record + compute baseline thresholds)
+- `model.json` — the trained per-user model (baselines + classifier weights).
+  Written after calibration and reloaded on restart. Git-ignored.
+- `data/` — scratch space for recorded calibration sessions. Git-ignored
+  (except `.gitkeep`).
+
+## Why this matters
+
+There's no universal "zoning out" signature — an alpha increase can mean
+relaxed focus, drowsiness, *or* mind-wandering. Calibrating against your own two
+states is what makes the score meaningful and honest.

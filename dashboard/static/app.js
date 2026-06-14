@@ -2,6 +2,10 @@
 const $ = (id) => document.getElementById(id);
 const GAUGE_CIRC = 2 * Math.PI * 92; // matches r=92 in the SVG
 
+// eased focus readout — packets arrive at 20 Hz; we glide toward the target at
+// frame rate so the number and gauge never snap between samples.
+let focusTarget = 0, focusDisplay = 0, focusReady = false;
+
 // ---- color helpers ----------------------------------------------------------
 function focusColor(score) {
   // warm neutral orange -> white
@@ -74,7 +78,31 @@ function drawWave() {
   }
 
   drawBandsChart();
+  tickFocus();
   requestAnimationFrame(drawWave);
+}
+
+// glide the focus number + gauge arc toward the latest target each frame
+function tickFocus() {
+  const num = $("focus-num");
+  const arc = $("gauge-arc");
+  if (!focusReady) {
+    focusDisplay = focusTarget;            // stay primed; don't animate while warming up
+    num.textContent = "--";
+    num.style.color = "var(--ink-faint)";
+    arc.style.strokeDashoffset = GAUGE_CIRC;
+    arc.style.stroke = "rgba(255,255,255,0.10)";
+    arc.style.filter = "none";
+    return;
+  }
+  focusDisplay += (focusTarget - focusDisplay) * 0.16;
+  if (Math.abs(focusTarget - focusDisplay) < 0.05) focusDisplay = focusTarget;
+  const col = focusColor(focusDisplay);
+  num.textContent = Math.round(focusDisplay);
+  num.style.color = col;
+  arc.style.strokeDashoffset = GAUGE_CIRC * (1 - focusDisplay / 100);
+  arc.style.stroke = col;
+  arc.style.filter = `drop-shadow(0 0 8px ${col})`;
 }
 
 function drawBandsChart() {
@@ -133,16 +161,10 @@ function drawBandLine(key, color, maxVal) {
 
 // ---- render a packet --------------------------------------------------------
 function render(p) {
-  // focus gauge
-  const score = (p.focus ?? 0);
-  $("focus-num").textContent = p.ready ? Math.round(score) : "--";
+  // focus gauge — store the target; tickFocus() eases toward it every frame
+  focusTarget = (p.focus ?? 0);
+  focusReady = !!p.ready;
   $("focus-state").textContent = stateLabel(p);
-  const col = focusColor(score);
-  const arc = $("gauge-arc");
-  arc.style.strokeDashoffset = GAUGE_CIRC * (1 - score / 100);
-  arc.style.stroke = col;
-  arc.style.filter = `drop-shadow(0 0 8px ${col})`;
-  $("focus-num").style.color = p.ready ? col : "var(--ink-faint)";
 
   // waveform
   if (Array.isArray(p.wave)) waveData = p.wave;
@@ -173,16 +195,11 @@ function render(p) {
   // alert banner + nudges (fire only on state transitions)
   $("alert-banner").classList.toggle("hidden", !p.alert);
   if (p.alert && !prevAlert) {
-    onZoneOut();
-    zoneOutStartTime = Date.now();
-  } else if (p.alert && prevAlert) {
-    if (zoneOutStartTime && !sirenPlaying && (Date.now() - zoneOutStartTime > 7000)) {
-      startSiren();
-    }
+    onZoneOut();      // desktop notification + vibrate
+    startBuzzer();    // loud, continuous buzzer the instant you zone out
   } else if (!p.alert && prevAlert) {
     onRecover();
-    zoneOutStartTime = null;
-    stopSiren();
+    stopBuzzer();     // silence it the moment you refocus
   }
   prevAlert = p.alert;
 
@@ -255,9 +272,7 @@ function setCalib(p) {
 let nudgeOn = false;
 let prevAlert = false;
 let audioCtx = null;
-let zoneOutStartTime = null;
-let sirenPlaying = false;
-let sirenInterval = null;
+let buzzerNodes = null;   // continuous zone-out buzzer (oscillators + gain)
 
 function ensureAudio() {
   if (!audioCtx) {
@@ -279,25 +294,48 @@ function tone(freq, startAt, dur, peak = 0.18, type = "sine") {
 const playDrift = () => { ensureAudio(); tone(440, 0, 0.18); tone(294, 0.16, 0.32); };   // descending = uh-oh
 const playRecover = () => { ensureAudio(); tone(523, 0, 0.13); tone(784, 0.11, 0.22); };  // ascending = nice
 
-function playSirenTone() {
+// Loud, continuous buzzer that runs the whole time you're zoned out.
+function startBuzzer() {
+  if (!nudgeOn || buzzerNodes) return;
   ensureAudio();
-  tone(580, 0, 0.4, 0.2, "square");
-  tone(435, 0.4, 0.4, 0.2, "square");
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+
+  // master gain — ramps up loud fast, then holds until stopped
+  const master = audioCtx.createGain();
+  master.gain.setValueAtTime(0.0001, now);
+  master.gain.exponentialRampToValueAtTime(0.34, now + 0.04);
+  master.connect(audioCtx.destination);
+
+  // two slightly-detuned harsh oscillators → gritty, attention-grabbing alarm
+  const osc1 = audioCtx.createOscillator();
+  osc1.type = "sawtooth"; osc1.frequency.value = 200;
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = "square"; osc2.frequency.value = 204;
+  osc1.connect(master); osc2.connect(master);
+
+  // fast tremolo on the gain → the classic "bzzz" buzzer character
+  const lfo = audioCtx.createOscillator();
+  lfo.type = "square"; lfo.frequency.value = 18;
+  const lfoDepth = audioCtx.createGain();
+  lfoDepth.gain.value = 0.14;
+  lfo.connect(lfoDepth); lfoDepth.connect(master.gain);
+
+  osc1.start(now); osc2.start(now); lfo.start(now);
+  buzzerNodes = { master, osc1, osc2, lfo };
 }
 
-function startSiren() {
-  if (!nudgeOn) return;
-  sirenPlaying = true;
-  playSirenTone();
-  sirenInterval = setInterval(playSirenTone, 800);
-}
-
-function stopSiren() {
-  sirenPlaying = false;
-  if (sirenInterval) {
-    clearInterval(sirenInterval);
-    sirenInterval = null;
-  }
+function stopBuzzer() {
+  if (!buzzerNodes) return;
+  const { master, osc1, osc2, lfo } = buzzerNodes;
+  const t = audioCtx ? audioCtx.currentTime : 0;
+  try {
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), t);
+    master.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    osc1.stop(t + 0.12); osc2.stop(t + 0.12); lfo.stop(t + 0.12);
+  } catch (_) {}
+  buzzerNodes = null;
 }
 
 function notify(title, body) {
@@ -328,11 +366,12 @@ $("btn-nudge").onclick = async () => {
     $("btn-nudge").classList.add("on");
     tone(660, 0, 0.12);  // confirmation beep
     const note = ("Notification" in window && Notification.permission === "granted")
-      ? "Sound + desktop notification when you zone out."
-      : "Sound alert on. (Allow notifications for desktop pop-ups too.)";
+      ? "Loud buzzer + desktop notification when you zone out."
+      : "Buzzer on. (Allow notifications for desktop pop-ups too.)";
     $("nudge-msg").textContent = note;
   } else {
     nudgeOn = false;
+    stopBuzzer();        // silence any buzzer that's currently sounding
     $("btn-nudge").textContent = "🔕 Enable nudges";
     $("btn-nudge").classList.remove("on");
     $("nudge-msg").textContent = "";
@@ -487,8 +526,8 @@ function drawSummaryChart(timeline) {
     c.fillStyle = "rgba(255,255,255,0.3)"; c.fillText(v, pad.l - 6, y);
   });
 
-  // zone-out threshold line at 45
-  const yth = yOf(45);
+  // zone-out threshold line at 40
+  const yth = yOf(40);
   c.strokeStyle = "rgba(204,160,128,0.6)"; c.lineWidth = 1.5; c.setLineDash([5, 4]);
   c.beginPath(); c.moveTo(pad.l, yth); c.lineTo(w - pad.r, yth); c.stroke();
   c.setLineDash([]);

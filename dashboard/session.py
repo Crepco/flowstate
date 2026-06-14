@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 
 # Focus at/above this counts as "focused" (matches the pipeline alert threshold).
-FOCUS_THRESHOLD = 45.0
+FOCUS_THRESHOLD = 40.0
 _BAND_KEYS = ("theta", "alpha", "beta", "gamma")
 
 

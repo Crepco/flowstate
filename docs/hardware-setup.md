@@ -2,23 +2,30 @@
 
 ## Components
 - BioAmp EXG Pill ([Upside Down Labs](https://upsidedownlabs.tech/))
-- ESP32 dev board
+- Arduino UNO R4 (Renesas) — chosen for its clean 14-bit ADC
 - Electrodes (forehead Fp1/Fp2 + earlobe/mastoid reference)
 
 ## Wiring
-| BioAmp EXG Pill | ESP32 |
-|---|---|
-| VCC | 3.3V |
-| GND | GND |
-| Output (yellow) | GPIO36 (VP) or GPIO39 (VN) |
 
-Read via `analogRead(36)` or `analogRead(39)`.
+| BioAmp EXG Pill | Arduino UNO R4 |
+|-----------------|----------------|
+| VCC (red)       | 3.3V           |
+| GND (black)     | GND            |
+| Output (yellow) | A0             |
 
-Avoid ADC2 pins (0, 2, 4, 12-15, 25-27) — they conflict with WiFi when ADC2 is in use.
+Read in firmware via `analogRead(A0)` at 14-bit resolution.
 
 ## Electrode placement
-- Active electrodes on forehead (Fp1/Fp2)
-- Reference electrode on earlobe or mastoid
+- Two active electrodes on the forehead (Fp1/Fp2, above the eyebrows)
+- One reference electrode on an earlobe or the mastoid bone
 
-## Visualization tool
-[Chords](https://chords.upsidedownlabs.tech/) — Upside Down Labs' web app for visualizing and recording BioAmp signals directly from the board over WebSerial/WebBLE. Useful for quick signal checks and recording calibration data without custom firmware.
+## Firmware
+Flash [../arduino/flowstate_eeg/flowstate_eeg.ino](../arduino/flowstate_eeg/flowstate_eeg.ino).
+It samples A0 at 500 Hz and prints one raw ADC value per line over USB serial at
+230400 baud. See [../arduino/README.md](../arduino/README.md).
+
+## Visualization / recording tool
+[Chords](https://chords.upsidedownlabs.tech/) — Upside Down Labs' web app for
+visualising and recording BioAmp signals directly from the board over WebSerial.
+Useful for quick signal checks and for recording calibration data you can replay
+through the dashboard as a CSV.

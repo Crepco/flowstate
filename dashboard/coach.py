@@ -30,7 +30,7 @@ Rules:
 tailored to what their data shows.
 - Be honest that the focus score is a relative, personal EEG *proxy*, not a \
 medical or absolute measurement. Never give medical advice.
-- A focus score below 45 counts as "zoned out". Higher beta vs alpha+theta means \
+- A focus score below 40 counts as "zoned out". Higher beta vs alpha+theta means \
 more engagement; rising alpha/theta often means drowsiness or mind-wandering."""
 
 
@@ -71,7 +71,7 @@ def _session_block(summary) -> str:
         f"- duration: {dur:.0f}s ({dur/60:.1f} min)\n"
         f"- average focus score: {summary.get('avg_focus')}/100\n"
         f"- peak focus: {summary.get('peak_focus')}/100\n"
-        f"- time spent focused (score >= 45): {summary.get('pct_focused')}%\n"
+        f"- time spent focused (score >= 40): {summary.get('pct_focused')}%\n"
         f"- number of zone-outs (lapses): {summary.get('zone_outs')}\n"
         f"- longest unbroken focused streak: {summary.get('longest_streak')}s\n"
         f"- average band mix (relative): theta {b.get('theta')}, alpha {b.get('alpha')}, "

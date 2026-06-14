@@ -1,8 +1,8 @@
 # Signal Pipeline Notes
 
 ## Sampling
-- Sample EEG at 250–500Hz via ESP32 ADC
-- Send over serial/BLE to laptop, or use [Chords](https://chords.upsidedownlabs.tech/) to record/export
+- Sample EEG at 500Hz via the Arduino UNO R4 ADC (14-bit)
+- Stream over USB serial to the laptop, or use [Chords](https://chords.upsidedownlabs.tech/) to record/export
 
 ## Filtering
 - Bandpass filter 1–40Hz
@@ -20,7 +20,7 @@
 ## Known challenges
 - **Noise**: forehead EEG is noisy — eye blinks, jaw clenching, head movement create large artifacts. Need amplitude-based artifact rejection for blinks.
 - **Electrode drift**: dry electrodes drift with sweat/contact changes → baseline wander.
-- **ADC limits**: ESP32 ADC is 12-bit and noisy vs. dedicated ADCs (ADS1115 would help if available).
+- **ADC limits**: the UNO R4's onboard ADC, while 14-bit, is still noisier than a dedicated EEG ADC (an ADS1115 would help if available).
 - **No universal "zoning out" signature**: alpha increase can mean relaxed-focus, drowsiness, OR mind-wandering — it's a proxy, not ground truth.
 - **Real-time FFT**: careful buffering with overlapping windows; don't block the dashboard update loop.
 

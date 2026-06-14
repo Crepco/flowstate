@@ -27,23 +27,30 @@
       </div>
     </div>
     <div class="topbar-action">
-      <button id="btn-session" class="btn-session">
+      <div class="source-group" role="group" aria-label="Data source">
+        <span class="source-group-label">Source</span>
+        <button id="btn-csv" class="src-btn" title="Replay a recorded EEG file">CSV demo</button>
+        <span class="src-sep" aria-hidden="true"></span>
+        <select id="port-select" class="src-select" title="Pick the serial port your headset is on"><option value="">serial port…</option></select>
+        <button id="btn-serial" class="src-btn src-btn-live" title="Stream live from the connected headset">Go live</button>
+      </div>
+      <button id="btn-session" class="btn-session" title="Record a focus session and get a debrief">
         <span class="session-ico"></span>
         <span id="session-label">Start session</span>
         <span id="session-timer" class="session-timer hidden">00:00</span>
       </button>
-      <button id="btn-csv" class="btn btn-csv">Replay CSV</button>
-      <select id="port-select" class="select"><option value="">serial port…</option></select>
-      <button id="btn-serial" class="btn btn-serial">Go live</button>
-      <span id="source-msg" class="hint"></span>
-    </div>
-    <div class="status-chips">
-      <span id="chip-conn" class="chip chip-muted"><span class="led"></span>connecting…</span>
-      <span id="chip-quality" class="chip chip-muted">signal: —</span>
-      <span id="chip-mode" class="chip chip-muted">model: —</span>
-      <span id="chip-calib" class="chip chip-muted">uncalibrated</span>
     </div>
   </header>
+
+  <div class="statusbar">
+    <div class="status-chips" role="status" aria-label="Signal status">
+      <span id="chip-conn" class="chip chip-muted" title="Connection to the live data stream"><span class="led"></span>connecting…</span>
+      <span id="chip-quality" class="chip chip-muted" title="How clean the EEG signal is right now">signal: —</span>
+      <span id="chip-mode" class="chip chip-muted" title="How the focus score is computed">model: —</span>
+      <span id="chip-calib" class="chip chip-muted" title="Whether the score is tuned to you">uncalibrated</span>
+    </div>
+    <div id="source-msg" class="source-msg" role="status" aria-live="polite"></div>
+  </div>
 
   <main class="grid">
     <!-- Combined Focus + Wave Hero -->
@@ -85,26 +92,28 @@
 
     <!-- Controls -->
     <section class="card controls-card">
-      <div class="card-head"><h2>Calibration</h2><span class="hint">teaches the score what your focus looks like</span></div>
-      <div id="calib-status" class="calib-status">Not calibrated — score is relative to recent activity. Run both steps for a personalised score.</div>
-      <div class="btn-row">
-        <button id="btn-focused" class="btn btn-focus">Record 60s focused</button>
-        <button id="btn-zoned" class="btn btn-zone">Record 60s zoned-out</button>
+      <div class="card-head"><h2>Calibration</h2><span class="hint">teach the score your focus</span></div>
+      <div id="calib-status" class="calib-status">Not calibrated — score is relative to recent activity. Capture both states for a personalised score.</div>
+      <div class="calib-grid">
+        <button id="btn-focused" class="btn btn-focus" title="Hold a focused state for 60 seconds">
+          <span class="cal-dot cal-dot-focus" aria-hidden="true"></span>
+          Capture focused<span class="cal-sub">60s</span>
+        </button>
+        <button id="btn-zoned" class="btn btn-zone" title="Let yourself drift for 60 seconds">
+          <span class="cal-dot cal-dot-zone" aria-hidden="true"></span>
+          Capture zoned-out<span class="cal-sub">60s</span>
+        </button>
       </div>
-      <div class="btn-row">
+      <div class="btn-row btn-row-ghost">
         <button id="btn-cancel" class="btn btn-ghost" disabled>Cancel</button>
         <button id="btn-reset" class="btn btn-ghost">Reset / retrain</button>
       </div>
 
       <div class="divider"></div>
 
-      <div class="card-head"><h2>Nudges</h2><span class="hint">alert when you zone out</span></div>
-      <div class="btn-row">
-        <button id="btn-nudge" class="btn btn-ghost">🔕 Enable nudges</button>
-      </div>
-      <p id="nudge-msg" class="hint"></p>
-
-
+      <div class="card-head"><h2>Nudges</h2><span class="hint">alert when you drift</span></div>
+      <button id="btn-nudge" class="btn btn-ghost btn-nudge">🔕 Enable nudges</button>
+      <p id="nudge-msg" class="hint nudge-msg"></p>
     </section>
   </main>
 
