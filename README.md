@@ -1,6 +1,6 @@
 # FlowState 🧠
 
-**Real-time focus tracking from a single forehead EEG sensor.** FlowState reads
+**Real-time focus tracking from EEG sensor placed on the forehead.** FlowState reads
 your brain activity through a [BioAmp EXG Pill](https://upsidedownlabs.tech/) on
 an **Arduino UNO R4**, turns it into a live 0–100 focus score, and buzzes you the
 moment you zone out while studying or in an online class.
